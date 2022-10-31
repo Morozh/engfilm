@@ -3,24 +3,38 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const commands = require('./js/const');
 const axios = require('axios');
-
-const testUrl = 'https://google.com';
+const api = require('./js/api');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 bot.start((ctx) => {
   const username = ctx.message.from.first_name ? ctx.message.from.first_name : 'англичанин';
 
-  ctx.reply(`Привет ${username}!`);
+  ctx.reply(`Привет ${username}!\n\nНапиши мне название фильма, который ты хотел бы посмотреть:`);
 });
 bot.help((ctx) => ctx.reply(commands.commands));
 
 bot.on('text', async (ctx) => {
-  axios.get(testUrl)
-    .then((response) => {
-      ctx.reply(`Вот тебе фильм - ${response}`);
+  const message = await ctx.message.text;
+
+  axios.get(`${api.getRequestType('SearchMovie')}/${message}`)
+    .then((movies) => {
+      const filmId = movies.data.results[0].id;
+
+      axios.get(`${api.getRequestType('Trailer')}/${filmId}`).then((trailer) => {
+        axios.get(`${api.getRequestType('Wikipedia')}/${filmId}`).then((wiki) => {
+          const filteredFilmCaption = wiki.data.plotShort.plainText.split('.')[0];
+
+          ctx.replyWithPhoto(
+            { url: trailer.data.thumbnailUrl },
+            { caption: `
+              ${trailer.data.fullTitle}\n${filteredFilmCaption}
+            ` }
+          );
+        });
+      });
     })
     .catch((error) => {
-      console.error(`Error: ${error}`)
+      console.error(`Error: ${error}`);
     });
 });
 
@@ -33,8 +47,6 @@ bot.on('text', async (ctx) => {
   //   ]
   // ));
 // });
-
-
 
 // bot.on('inline_query', async (ctx) => {
 //   const result = [];
