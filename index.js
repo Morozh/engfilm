@@ -1,76 +1,39 @@
 require('dotenv').config();
 
-const { Telegraf, Markup } = require('telegraf');
+const { Telegraf } = require('telegraf');
 const commands = require('./js/const');
 const axios = require('axios');
-const api = require('./js/api');
+const filmLink = 'https://lookmovie2.to/movies/view/';
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 bot.start((ctx) => {
   const username = ctx.message.from.first_name ? ctx.message.from.first_name : 'англичанин';
 
-  ctx.reply(`Привет ${username}!\n\nНапиши мне название фильма, который ты хотел бы посмотреть:`);
+  ctx.reply(`Привет ${username}!\n\nНапиши мне название фильма, который ты хотел(а) бы посмотреть:`);
 });
 bot.help((ctx) => ctx.reply(commands.commands));
 
 bot.on('text', async (ctx) => {
   const message = await ctx.message.text;
 
-  axios.get(`${api.getRequestType('SearchMovie')}/${message}`)
-    .then((movies) => {
-      const filmId = movies.data.results[0].id;
+  axios.get(`http://www.omdbapi.com/?t=${message}&apikey=${process.env.OMDB_KEY}`)
+    .then((movie) => {
+      const titleToLink = `${movie.data.Title.toLowerCase().split(' ').join('-')}-${movie.data.Year}`;
 
-      axios.get(`${api.getRequestType('Trailer')}/${filmId}`).then((trailer) => {
-        axios.get(`${api.getRequestType('Wikipedia')}/${filmId}`).then((wiki) => {
-          const filteredFilmCaption = wiki.data.plotShort.plainText.split('.')[0];
-
-          ctx.replyWithPhoto(
-            { url: trailer.data.thumbnailUrl },
-            { caption: `
-              ${trailer.data.fullTitle}\n${filteredFilmCaption}
-            ` }
-          );
-        });
-      });
+      ctx.replyWithPhoto(
+        {
+          url: movie.data.Poster ? movie.data.Poster : ''
+        },
+        {
+          caption: `Film: ${movie.data.Title} - ${movie.data.Year}\n\n★ Internet Movie Database - ${movie.data.imdbRating}\n\n${movie.data.Plot}\n\nWatch now: ${filmLink}${titleToLink}`
+        }
+      )
     })
     .catch((error) => {
+      ctx.reply('Название фильма не найдено в базе данных, попробуйте ввести другой фильм.');
       console.error(`Error: ${error}`);
     });
 });
-
-// bot.command('film', (ctx) => {
-  
-  // ctx.reply('Введите название фильма, который хотели бы посмотреть в оригинале:');
-  // ctx.replyWithHTML('<b>Фильм</b>', Markup.inlineKeyboard(
-  //   [
-  //     [Markup.button.callback('Редакторы', 'btn_1')]
-  //   ]
-  // ));
-// });
-
-// bot.on('inline_query', async (ctx) => {
-//   const result = [];
-
-//   await ctx.answerInlineQuery(result);
-// });
-
-// bot.hears("Contact", (ctx) => {
-//   ctx.reply("<b>?</b>", {
-//     parse_mode: "HTML",
-//     ...Markup.inlineKeyboard([
-//       Markup.button.callback("kyky", "kyky"),
-//       Markup.button.callback("mymy", "mymy")
-//     ])
-//   });
-// });
-
-// bot.action("kyky", (ctx) => {
-//   ctx.reply("@kyky")
-// })
-
-// bot.action("mymy", (ctx) => {
-//   ctx.reply("@mymy")
-// })
 
 bot.launch();
 
